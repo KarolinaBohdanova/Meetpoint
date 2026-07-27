@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Events - MeetPoint</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        * { font-family: 'Inter', sans-serif; }
+        .event-card { transition: all 0.3s ease; }
+        .event-card:hover { transform: translateY(-5px); box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
+        .fade-in { animation: fadeIn 0.8s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .category-filter.active { background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; }
+        .status-full { background: #fee2e2; color: #991b1b; }
+        .status-active { background: #dcfce7; color: #166534; }
+        
+        /* User dropdown styles */
+        .user-dropdown { position: relative; }
+        .dropdown-menu { 
+            position: absolute; 
+            top: 100%; 
+            right: 0; 
+            margin-top: 8px;
+            background: white; 
+            border-radius: 8px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15); 
+            min-width: 180px;
+            display: none;
+            z-index: 1000;
+        }
+        .dropdown-menu.show { display: block; }
+        .dropdown-item { 
+            padding: 10px 16px; 
+            cursor: pointer; 
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .dropdown-item:hover { background: #f3f4f6; }
+        .dropdown-item:first-child { border-radius: 8px 8px 0 0; }
+        .dropdown-item:last-child { border-radius: 0 0 8px 8px; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <nav class="bg-white shadow-lg border-b border-gray-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-20">
+                <div class="flex items-center space-x-3">
+                    <a href="index.html" class="flex items-center gap-2">
+                        <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-map-marker-alt text-white text-lg"></i>
+                        </div>
+                        <h1 class="text-xl font-bold text-gray-900">MeetPoint</h1>
+                    </a>
+                </div>
+                <!-- ✅ FIXED: Added Friends and Profile links -->
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="index.html" class="text-gray-700 hover:text-blue-600"><i class="fas fa-map mr-2"></i>Map</a>
+                    <a href="events.html" class="text-blue-600 font-medium border-b-2 border-blue-600 pb-1"><i class="fas fa-calendar-alt mr-2"></i>Events</a>
+                    <a href="friends.html" class="text-gray-700 hover:text-blue-600"><i class="fas fa-users mr-2"></i>Friends</a>
+                    <a href="profile.html" class="text-gray-700 hover:text-blue-600"><i class="fas fa-user mr-2"></i>Profile</a>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div id="userStatus" class="hidden user-dropdown">
+                        <div class="flex items-center space-x-2 cursor-pointer" onclick="toggleUserDropdown()">
+                            <img id="usernameAvatar" src="" alt="Avatar" class="w-8 h-8 rounded-full">
+                            <span id="usernameDisplay" class="text-sm font-medium"></span>
+                            <i class="fas fa-chevron-down text-xs text-gray-500"></i>
+                        </div>
+                        <div id="userDropdown" class="dropdown-menu">
+                            <a href="profile.html" class="dropdown-item">
+                                <i class="fas fa-user"></i>
+                                <span>Profile</span>
+                            </a>
+                            <div class="dropdown-item" onclick="app.logout()">
+                                <i class="fas fa-sign-out-alt"></i>
+                                <span>Logout</span>
+                            </div>
+                        </div>
+                    </div>
+                    <a id="loginBtn" href="login.html" class="bg-blue-600 text-white px-4 py-2 rounded-lg">Login</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="text-center mb-8 fade-in">
+            <h2 class="text-3xl font-bold text-gray-900 mb-2">Discover Events</h2>
+            <p class="text-gray-600">Join the community in Łódź</p>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8 fade-in">
+            <div class="flex flex-col md:flex-row gap-4 justify-between items-center">
+                <div class="relative flex-1 w-full">
+                    <input type="text" id="searchInput" placeholder="Search events..." class="w-full pl-10 p-3 border rounded-lg">
+                    <i class="fas fa-search absolute left-3 top-4 text-gray-400"></i>
+                </div>
+                <button onclick="showCreateEventModal()" class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 whitespace-nowrap">
+                    <i class="fas fa-plus mr-2"></i>Create Event
+                </button>
+            </div>
+            <div class="mt-4 flex flex-wrap gap-2">
+                <button onclick="filterCategory('all')" class="category-filter active px-4 py-2 rounded-full text-sm bg-gray-100">All</button>
+                <button onclick="filterCategory('sports')" class="category-filter px-4 py-2 rounded-full text-sm bg-gray-100">Sports</button>
+                <button onclick="filterCategory('tech')" class="category-filter px-4 py-2 rounded-full text-sm bg-gray-100">Tech</button>
+                <button onclick="filterCategory('food')" class="category-filter px-4 py-2 rounded-full text-sm bg-gray-100">Food</button>
+                <button onclick="filterCategory('social')" class="category-filter px-4 py-2 rounded-full text-sm bg-gray-100">Social</button>
+                <button onclick="filterCategory('study')" class="category-filter px-4 py-2 rounded-full text-sm bg-gray-100">Study</button>
+                <button onclick="filterCategory('travel')" class="category-filter px-4 py-2 rounded-full text-sm bg-gray-100">Travel</button>
+                <button onclick="filterCategory('music')" class="category-filter px-4 py-2 rounded-full text-sm bg-gray-100">Music</button>
+                <button onclick="filterCategory('art')" class="category-filter px-4 py-2 rounded-full text-sm bg-gray-100">Art</button>
+                <button onclick="filterCategory('none')" class="category-filter px-4 py-2 rounded-full text-sm bg-gray-100">None</button>
+            </div>
+        </div>
+
+        <div id="eventsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+        <div id="emptyState" class="hidden text-center py-12 text-gray-500">No events found.</div>
+    </div>
+
+    <div id="createEventModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-[9999] flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 class="text-xl font-bold mb-4">New Event</h3>
+            <form id="createEventForm" class="space-y-3">
+                <input type="text" id="eventTitle" placeholder="Title" required class="w-full border p-2 rounded">
+                <textarea id="eventDescription" placeholder="Description" required class="w-full border p-2 rounded"></textarea>
+                <div class="grid grid-cols-2 gap-2">
+                    <select id="eventCategory" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <option value="">Select category</option>
+                        <option value="none">🔘 No Category</option>
+                        <option value="sports">🏃 Sports & Fitness</option>
+                        <option value="study">📚 Study & Learning</option>
+                        <option value="social">🎉 Social & Entertainment</option>
+                        <option value="food">🍕 Food & Dining</option>
+                        <option value="travel">✈️ Travel & Adventure</option>
+                        <option value="music">🎵 Music & Arts</option>
+                        <option value="art">🎨 Arts & Culture</option>
+                        <option value="tech">💻 Technology</option>
+                    </select>
+                    <input type="number" id="maxParticipants" value="10" class="border p-2 rounded">
+                </div>
+                <input type="datetime-local" id="eventDatetime" required class="w-full border p-2 rounded">
+                <input type="text" id="eventLocation" placeholder="Address (e.g. Manufaktura)" required class="w-full border p-2 rounded">
+                <div class="flex gap-2 pt-4">
+                    <button type="button" onclick="hideCreateEventModal()" class="flex-1 border p-2 rounded">Cancel</button>
+                    <button type="submit" class="flex-1 bg-blue-600 text-white p-2 rounded">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="main.js"></script>
+    <script>
+        let currentFilter = 'all';
+        let searchQuery = '';
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if(app.currentUser) {
+                document.getElementById('userStatus').classList.remove('hidden');
+                document.getElementById('loginBtn').classList.add('hidden');
+                document.getElementById('usernameDisplay').innerText = app.currentUser.name;
+                document.getElementById('usernameAvatar').src = app.currentUser.avatar || 'resources/avatars/default.jpg';
+            }
+            
+            await app.fetchEvents();
+            renderEvents();
+
+            document.getElementById('searchInput').addEventListener('input', (e) => {
+                searchQuery = e.target.value.toLowerCase();
+                renderEvents();
+            });
+
+            document.getElementById('createEventForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                await createEvent(); 
+            });
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.user-dropdown')) {
+                    document.getElementById('userDropdown')?.classList.remove('show');
+                }
+            });
+        });
+
+        function toggleUserDropdown() {
+            const dropdown = document.getElementById('userDropdown');
+            dropdown.classList.toggle('show');
+        }
+
+        async function createEvent() {
+            const title = document.getElementById('eventTitle').value;
+            const desc = document.getElementById('eventDescription').value;
+            const cat = document.getElementById('eventCategory').value;
+            const date = document.getElementById('eventDatetime').value;
+            const max = document.getElementById('maxParticipants').value;
+            const addr = document.getElementById('eventLocation').value;
+            
+            const btn = document.querySelector('#createEventForm button[type="submit"]');
+            const originalText = btn.innerText;
+            btn.innerText = "Locating...";
+            btn.disabled = true;
+
+            let loc = [51.7592, 19.4560]; 
+            
+            if (app.getCoordinates && addr) {
+                const foundCoords = await app.getCoordinates(addr);
+                if (foundCoords) {
+                    loc = foundCoords;
+                }
+            }
+
+            btn.innerText = window.editingEventId ? "Updating..." : "Creating...";
+            
+            let res;
+            if (window.editingEventId) {
+                res = await app.editEvent(window.editingEventId, {
+                    title: title,
+                    description: desc,
+                    category: cat,
+                    latitude: loc[0],
+                    longitude: loc[1],
+                    address: addr,
+                    datetime: date,
+                    maxParticipants: max
+                });
+            } else {
+                res = await app.createEvent(title, desc, cat, loc, addr, date, max);
+            }
+            
+            btn.innerText = originalText;
+            btn.disabled = false;
+
+            if(res.success) {
+                hideCreateEventModal();
+                renderEvents();
+            } else {
+                alert(res.message || "Error saving event");
+            }
+        }
+
+        function renderEvents() {
+            const container = document.getElementById('eventsContainer');
+            const empty = document.getElementById('emptyState');
+            
+            const filtered = app.events.filter(e => {
+                const matchCat = currentFilter === 'all' || e.category === currentFilter;
+                const matchSearch = e.title.toLowerCase().includes(searchQuery);
+                return matchCat && matchSearch;
+            });
+
+            if(filtered.length === 0) {
+                container.classList.add('hidden');
+                empty.classList.remove('hidden');
+                return;
+            }
+
+            container.classList.remove('hidden');
+            empty.classList.add('hidden');
+            container.innerHTML = filtered.map((e, i) => {
+                const creatorName = e.creator ? e.creator.username : 'Unknown';
+                const isJoined = app.currentUser && e.participants.includes(app.currentUser.id);
+                const isFull = e.participants.length >= e.maxParticipants;
+                const isCreator = app.currentUser && e.creator && e.creator.id === app.currentUser.id;
+                
+                const icon = {
+                    sports:'🏃', food:'🍕', tech:'💻', social:'🎉', 
+                    study:'📚', travel:'✈️', music:'🎵', art:'🎨', none:'📍'
+                }[e.category] || '📍';
+                
+                const statusText = isFull ? 'Full' : 'Active';
+                const statusClass = isFull ? 'status-full' : 'status-active';
+                
+                const creatorButtons = isCreator ? `
+                    <div class="flex gap-2 mt-3">
+                        <button onclick="editEventFromList('${e.id}')" 
+                                class="flex-1 bg-yellow-100 text-yellow-700 py-2 px-3 rounded hover:bg-yellow-200 transition text-sm font-medium">
+                            <i class="fas fa-edit mr-1"></i>Edit
+                        </button>
+                        <button onclick="deleteEventFromList('${e.id}')" 
+                                class="flex-1 bg-red-100 text-red-700 py-2 px-3 rounded hover:bg-red-200 transition text-sm font-medium">
+                            <i class="fas fa-trash mr-1"></i>Delete
+                        </button>
+                    </div>
+                ` : '';
+                
+                return `
+                <div class="event-card bg-white rounded-lg shadow-md overflow-hidden fade-in" style="animation-delay: ${i*0.05}s">
+                    <div class="h-32 bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-4xl relative">
+                        ${icon}
+                        <div class="absolute top-2 right-2">
+                            <span class="status-badge ${statusClass}">${statusText}</span>
+                        </div>
+                    </div>
+                    <div class="p-5">
+                        <div class="flex justify-between items-start mb-2">
+                            <h3 class="font-bold text-lg">${e.title}</h3>
+                            <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full uppercase">${e.category || 'none'}</span>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-3 line-clamp-2">${e.description}</p>
+                        <div class="text-sm text-gray-500 space-y-1 mb-4">
+                            <div><i class="fas fa-clock mr-2"></i>${app.formatDate(e.datetime)}</div>
+                            <div><i class="fas fa-map-marker-alt mr-2"></i>${e.address}</div>
+                            <div><i class="fas fa-user mr-2"></i>By ${creatorName}</div>
+                            <div><i class="fas fa-users mr-2"></i>${e.participants.length}/${e.maxParticipants} joined</div>
+                        </div>
+                        
+                        ${creatorButtons}
+                        
+                        <div class="flex gap-2 ${creatorButtons ? 'mt-2' : ''}">
+                            <button onclick="viewOnMap('${e.id}')" 
+                                class="flex-1 bg-gray-100 text-gray-700 py-2 px-3 rounded hover:bg-gray-200 transition text-sm font-medium">
+                                <i class="fas fa-map mr-1"></i>View on Map
+                            </button>
+                            <button onclick="handleJoin('${e.id}')" 
+                                class="flex-1 py-2 px-3 rounded font-medium transition text-sm ${
+                                    isJoined 
+                                        ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                                        : isFull 
+                                            ? 'bg-gray-100 text-gray-500 cursor-not-allowed' 
+                                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                                }"
+                                ${isFull && !isJoined ? 'disabled' : ''}>
+                                ${isJoined ? 'Joined ✓' : isFull ? 'Full' : 'Join Event'}
+                            </button>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function viewOnMap(eventId) {
+            window.location.href = `index.html?eventId=${eventId}`;
+        }
+
+        async function editEventFromList(eventId) {
+            const event = app.events.find(e => e.id === eventId);
+            if (!event) return;
+
+            document.getElementById('eventTitle').value = event.title;
+            document.getElementById('eventDescription').value = event.description;
+            document.getElementById('eventCategory').value = event.category || 'none';
+            document.getElementById('maxParticipants').value = event.maxParticipants;
+            
+            const dt = new Date(event.datetime);
+            const formatted = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000)
+                .toISOString()
+                .slice(0, 16);
+            document.getElementById('eventDatetime').value = formatted;
+            
+            document.getElementById('eventLocation').value = event.address;
+            window.selectedLocation = [event.latitude, event.longitude];
+            window.editingEventId = eventId;
+
+            const modalTitle = document.querySelector('#createEventModal h3');
+            if (modalTitle) modalTitle.textContent = 'Edit Event';
+            
+            const submitBtn = document.querySelector('#createEventForm button[type="submit"]');
+            if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-save mr-2"></i>Update Event';
+
+            showCreateEventModal();
+        }
+
+        async function deleteEventFromList(eventId) {
+            const result = await app.deleteEvent(eventId);
+            if (result.success) {
+                renderEvents();
+            }
+        }
+
+        async function handleJoin(id) {
+            if(!app.currentUser) return alert("Please login first");
+            const res = await app.joinEvent(id);
+            if(res.success) renderEvents();
+            else alert(res.message);
+        }
+
+        function filterCategory(cat) {
+            currentFilter = cat;
+            document.querySelectorAll('.category-filter').forEach(b => {
+                b.classList.remove('active', 'text-white', 'bg-blue-600');
+                b.classList.add('bg-gray-100', 'text-gray-700');
+            });
+            event.target.classList.add('active', 'text-white', 'bg-blue-600');
+            event.target.classList.remove('bg-gray-100', 'text-gray-700');
+            renderEvents();
+        }
+
+        function showCreateEventModal() {
+            if(!app.currentUser) return alert("Login required");
+            
+            if (!window.editingEventId) {
+                const modalTitle = document.querySelector('#createEventModal h3');
+                if (modalTitle) modalTitle.textContent = 'New Event';
+                
+                const submitBtn = document.querySelector('#createEventForm button[type="submit"]');
+                if (submitBtn) submitBtn.innerHTML = 'Create';
+            }
+            
+            document.getElementById('createEventModal').classList.remove('hidden');
+        }
+
+        function hideCreateEventModal() {
+            document.getElementById('createEventModal').classList.add('hidden');
+            document.getElementById('createEventForm').reset();
+            delete window.editingEventId;
+            delete window.selectedLocation;
+            
+            const modalTitle = document.querySelector('#createEventModal h3');
+            if (modalTitle) modalTitle.textContent = 'New Event';
+            
+            const submitBtn = document.querySelector('#createEventForm button[type="submit"]');
+            if (submitBtn) submitBtn.innerHTML = 'Create';
+        }
+
+        window.viewOnMap = viewOnMap;
+        window.editEventFromList = editEventFromList;
+        window.deleteEventFromList = deleteEventFromList;
+        window.toggleUserDropdown = toggleUserDropdown;
+    </script>
+</body>
+</html>

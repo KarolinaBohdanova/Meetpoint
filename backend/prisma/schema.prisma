@@ -1,0 +1,111 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  password      String
+  name          String
+  avatar        String?        @default("resources/avatars/default.jpg")
+  bio           String?
+  interests     String[]       @default([])
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  
+  // Relations (Preserved)
+  eventMembers  EventMember[]
+  createdEvents Event[]        @relation("EventCreator")
+  friendOf      Friendship[]   @relation("FriendOf")
+  friendships   Friendship[]   @relation("UserFriendships")
+  messages      Message[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model Event {
+  id          String        @id @default(uuid())
+  title       String
+  description String
+  
+  // Mapped fields (We keep your DB names, mapped in API)
+  date        DateTime      // Frontend calls this 'datetime'
+  maxMembers  Int           @default(10) // Frontend calls this 'maxParticipants'
+  
+  latitude    Float
+  longitude   Float
+  
+  // NEW FIELD for Sprint 2
+  address     String        @default("Łódź, Poland") 
+  
+  category    String
+  tags        String[]      @default([])
+  status      String        @default("active")
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  
+  creatorId   String
+  creator     User          @relation("EventCreator", fields: [creatorId], references: [id])
+  
+  // Relations (Preserved)
+  members     EventMember[]
+  messages    Message[]
+
+  @@map("events")
+}
+
+// All existing models preserved exactly as they were
+model EventMember {
+  id       String   @id @default(uuid())
+  userId   String
+  eventId  String
+  joinedAt DateTime @default(now())
+  event    Event    @relation(fields: [eventId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, eventId])
+  @@map("event_members")
+}
+
+model Friendship {
+  id        String   @id @default(uuid())
+  userId    String
+  friendId  String
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+  friend    User     @relation("FriendOf", fields: [friendId], references: [id])
+  user      User     @relation("UserFriendships", fields: [userId], references: [id])
+
+  @@unique([userId, friendId])
+  @@map("friendships")
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  content   String
+  createdAt DateTime @default(now())
+  userId    String
+  eventId   String?
+  event     Event?   @relation(fields: [eventId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("messages")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  type      String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}

@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MeetPoint - Discover Social Events Near You</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        /* Prevent scrolling when map is active */
+        body, html {
+            overflow: hidden;
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .event-card {
+            transition: all 0.3s ease;
+            transform: translateY(0);
+        }
+        
+        .event-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.8s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .map-container {
+            height: calc(100vh - 80px);
+            width: 100%;
+        }
+        
+        .sidebar {
+            height: calc(100vh - 80px);
+            overflow-y: auto;
+        }
+        
+        .category-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+        
+        .custom-marker {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(-45deg);
+            border: 3px solid white;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .custom-marker-icon {
+            transform: rotate(45deg);
+            font-size: 18px;
+        }
+        
+        .marker-sports { background: linear-gradient(135deg, #10b981, #059669); }
+        .marker-study { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .marker-social { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .marker-food { background: linear-gradient(135deg, #ef4444, #dc2626); }
+        .marker-travel { background: linear-gradient(135deg, #06b6d4, #0891b2); }
+        .marker-music { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+        .marker-art { background: linear-gradient(135deg, #ec4899, #db2777); }
+        .marker-tech { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+        .marker-none { background: linear-gradient(135deg, #6b7280, #4b5563); }
+        
+        .marker-pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+
+        .mp-popup-card { min-width: 240px; padding: 4px; font-family: 'Inter', sans-serif; }
+        .mp-popup-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+        .mp-popup-title { font-weight: 700; font-size: 1.125rem; color: #111827; margin: 0; line-height: 1.25; }
+        .mp-popup-category { display: inline-block; font-size: 0.75rem; background-color: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 9999px; font-weight: 500; text-transform: capitalize; margin-bottom: 8px; }
+        .mp-popup-desc { font-size: 0.875rem; color: #4b5563; margin: 8px 0 12px 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .mp-popup-meta { display: flex; flex-direction: column; gap: 4px; font-size: 0.75rem; color: #6b7280; margin-bottom: 16px; }
+        .mp-meta-row { display: flex; align-items: center; }
+        .mp-meta-icon { width: 16px; text-align: center; margin-right: 6px; color: #9ca3af; }
+        
+        .mp-popup-btn { width: 100%; padding: 8px; border-radius: 6px; font-size: 0.875rem; font-weight: 500; transition: all 0.2s; cursor: pointer; border: none; outline: none; }
+        .mp-btn-join { background-color: #2563eb; color: white; }
+        .mp-btn-join:hover { background-color: #1d4ed8; }
+        .mp-btn-joined { background-color: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+        .mp-btn-full { background-color: #f3f4f6; color: #9ca3af; cursor: not-allowed; }
+
+        /* User dropdown */
+        .user-dropdown { position: relative; }
+        .dropdown-menu { 
+            position: absolute; 
+            top: 100%; 
+            right: 0; 
+            margin-top: 8px;
+            background: white; 
+            border-radius: 8px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15); 
+            min-width: 180px;
+            display: none;
+            z-index: 1000;
+        }
+        .dropdown-menu.show { display: block; }
+        .dropdown-item { 
+            padding: 10px 16px; 
+            cursor: pointer; 
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .dropdown-item:hover { background: #f3f4f6; }
+        .dropdown-item:first-child { border-radius: 8px 8px 0 0; }
+        .dropdown-item:last-child { border-radius: 0 0 8px 8px; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation Bar -->
+    <nav class="bg-white shadow-lg border-b border-gray-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-20">
+                <!-- Logo -->
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-map-marker-alt text-white text-lg"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold text-gray-900">MeetPoint</h1>
+                        <p class="text-xs text-gray-500">Discover events nearby</p>
+                    </div>
+                </div>
+
+                <!-- Navigation Links -->
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="index.html" class="text-blue-600 font-medium border-b-2 border-blue-600 pb-1">
+                        <i class="fas fa-map mr-2"></i>Map
+                    </a>
+                    <a href="events.html" class="text-gray-700 hover:text-blue-600 transition-colors">
+                        <i class="fas fa-calendar-alt mr-2"></i>Events
+                    </a>
+                    <a href="friends.html" class="text-gray-700 hover:text-blue-600 transition-colors">
+                        <i class="fas fa-users mr-2"></i>Friends
+                    </a>
+                    <a href="profile.html" class="text-gray-700 hover:text-blue-600 transition-colors">
+                        <i class="fas fa-user mr-2"></i>Profile
+                    </a>
+                </div>
+
+                <!-- User Actions -->
+                <div class="flex items-center space-x-4">
+                    <div id="userStatus" class="hidden user-dropdown">
+                        <div class="flex items-center space-x-2 cursor-pointer" onclick="toggleUserDropdown()">
+                            <img id="userAvatar" src="" alt="Avatar" class="w-8 h-8 rounded-full">
+                            <span id="username" class="text-sm font-medium text-gray-700"></span>
+                            <i class="fas fa-chevron-down text-xs text-gray-500"></i>
+                        </div>
+                        <div id="userDropdown" class="dropdown-menu">
+                            <a href="profile.html" class="dropdown-item">
+                                <i class="fas fa-user"></i>
+                                <span>Profile</span>
+                            </a>
+                            <div class="dropdown-item" onclick="app.logout()">
+                                <i class="fas fa-sign-out-alt"></i>
+                                <span>Logout</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="authButtons">
+                        <a href="login.html" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                            <i class="fas fa-sign-in-alt mr-2"></i>Login
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="flex h-screen">
+        <!-- Sidebar -->
+        <div class="w-80 bg-white shadow-lg sidebar">
+            <!-- Search Bar -->
+            <div class="p-4 border-b border-gray-200">
+                <div class="relative">
+                    <input 
+                        type="text" 
+                        id="searchInput"
+                        placeholder="Search events..."
+                        class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                    <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                </div>
+            </div>
+
+            <!-- Category Filters -->
+            <div class="p-4 border-b border-gray-200">
+                <h3 class="text-sm font-semibold text-gray-700 mb-3">Categories</h3>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="filterByCategory('all')" class="category-filter active flex items-center space-x-2 p-2 rounded-lg bg-blue-100 text-blue-700 text-sm">
+                        <span>🎯</span>
+                        <span>All</span>
+                    </button>
+                    <button onclick="filterByCategory('sports')" class="category-filter flex items-center space-x-2 p-2 rounded-lg bg-gray-100 text-gray-700 text-sm hover:bg-gray-200">
+                        <span>🏃</span>
+                        <span>Sports</span>
+                    </button>
+                    <button onclick="filterByCategory('study')" class="category-filter flex items-center space-x-2 p-2 rounded-lg bg-gray-100 text-gray-700 text-sm hover:bg-gray-200">
+                        <span>📚</span>
+                        <span>Study</span>
+                    </button>
+                    <button onclick="filterByCategory('social')" class="category-filter flex items-center space-x-2 p-2 rounded-lg bg-gray-100 text-gray-700 text-sm hover:bg-gray-200">
+                        <span>🎉</span>
+                        <span>Social</span>
+                    </button>
+                    <button onclick="filterByCategory('food')" class="category-filter flex items-center space-x-2 p-2 rounded-lg bg-gray-100 text-gray-700 text-sm hover:bg-gray-200">
+                        <span>🍕</span>
+                        <span>Food</span>
+                    </button>
+                    <button onclick="filterByCategory('travel')" class="category-filter flex items-center space-x-2 p-2 rounded-lg bg-gray-100 text-gray-700 text-sm hover:bg-gray-200">
+                        <span>✈️</span>
+                        <span>Travel</span>
+                    </button>
+                    <button onclick="filterByCategory('none')" class="category-filter flex items-center space-x-2 p-2 rounded-lg bg-gray-100 text-gray-700 text-sm hover:bg-gray-200">
+                        <span>🔘</span>
+                        <span>None</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Quick Stats -->
+            <div class="p-4 border-b border-gray-200">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="text-center">
+                        <div class="text-2xl font-bold text-blue-600" id="totalEvents">0</div>
+                        <div class="text-xs text-gray-500">Total Events</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-2xl font-bold text-green-600" id="activeEvents">0</div>
+                        <div class="text-xs text-gray-500">Active Now</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map Container -->
+        <div class="flex-1 relative">
+            <div id="map" class="map-container"></div>
+            
+            <!-- Map Controls -->
+            <div class="absolute top-4 right-4 space-y-2">
+                <button onclick="locateUser()" class="bg-white p-3 rounded-lg shadow-lg hover:bg-gray-50 transition-colors">
+                    <i class="fas fa-crosshairs text-blue-600"></i>
+                </button>
+                <button onclick="refreshMap()" class="bg-white p-3 rounded-lg shadow-lg hover:bg-gray-50 transition-colors">
+                    <i class="fas fa-sync-alt text-green-600"></i>
+                </button>
+            </div>
+
+            <!-- Create Event Floating Button -->
+            <button onclick="showCreateEventModal()" class="fixed bottom-10 right-10 bg-blue-600 text-white p-4 rounded-full shadow-2xl hover:bg-blue-700 transition-all transform hover:scale-110 z-[5000]">
+                <i class="fas fa-plus text-xl"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Create Event Modal -->
+    <div id="createEventModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-[9999] flex items-center justify-center">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md mx-4 transform transition-all">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold">Create New Event</h3>
+                <button onclick="hideCreateEventModal()" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <form id="createEventForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Event Title</label>
+                    <input type="text" id="eventTitle" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <textarea id="eventDescription" rows="3" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"></textarea>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                        <select id="eventCategory" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="">Select category</option>
+                            <option value="none">🔘 No Category</option>
+                            <option value="sports">🏃 Sports & Fitness</option>
+                            <option value="study">📚 Study & Learning</option>
+                            <option value="social">🎉 Social & Entertainment</option>
+                            <option value="food">🍕 Food & Dining</option>
+                            <option value="travel">✈️ Travel & Adventure</option>
+                            <option value="music">🎵 Music & Arts</option>
+                            <option value="art">🎨 Arts & Culture</option>
+                            <option value="tech">💻 Technology</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Max Participants</label>
+                        <input type="number" id="maxParticipants" min="2" max="100" value="10" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Date & Time</label>
+                    <input type="datetime-local" id="eventDatetime" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                    <input type="text" id="eventLocation" placeholder="Enter address or click on map" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                </div>
+                
+                <div class="flex space-x-3 pt-4">
+                    <button type="button" onclick="hideCreateEventModal()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                        Cancel
+                    </button>
+                    <button type="submit" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                        Create Event
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="main.js"></script>
+    
+    <script>
+        let currentFilter = 'all';
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+            setupEventListeners();
+        });
+
+        function initializeApp() {
+            app.loadUserSession();
+            
+            if (app.currentUser) {
+                showUserStatus();
+            }
+            
+            app.initializeMap('map');
+            updateStats();
+        }
+
+        function setupEventListeners() {
+            document.getElementById('searchInput').addEventListener('input', function(e) {
+                const query = e.target.value.toLowerCase();
+                filterMapMarkers(query);
+            });
+
+            document.getElementById('createEventForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                createEvent();
+            });
+
+            app.map.on('click', function(e) {
+                if (document.getElementById('createEventModal').classList.contains('hidden')) return;
+                
+                const lat = e.latlng.lat;
+                const lng = e.latlng.lng;
+                
+                document.getElementById('eventLocation').value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                window.selectedLocation = [lat, lng];
+            });
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.user-dropdown')) {
+                    document.getElementById('userDropdown')?.classList.remove('show');
+                }
+            });
+        }
+
+        function toggleUserDropdown() {
+            const dropdown = document.getElementById('userDropdown');
+            dropdown.classList.toggle('show');
+        }
+
+        function updateStats() {
+            document.getElementById('totalEvents').textContent = app.events.length;
+            document.getElementById('activeEvents').textContent = app.events.filter(e => e.status === 'active').length;
+        }
+
+        function filterMapMarkers(query = '') {
+            app.clearMarkers();
+            
+            let filteredEvents = app.events;
+            
+            // Apply category filter
+            if (currentFilter !== 'all') {
+                filteredEvents = filteredEvents.filter(e => e.category === currentFilter);
+            }
+            
+            // Apply search filter
+            if (query) {
+                filteredEvents = filteredEvents.filter(e => 
+                    e.title.toLowerCase().includes(query) || 
+                    e.description.toLowerCase().includes(query)
+                );
+            }
+            
+            filteredEvents.forEach(event => app.addEventMarker(event));
+            updateStats();
+        }
+
+        function filterByCategory(category) {
+            currentFilter = category;
+            
+            document.querySelectorAll('.category-filter').forEach(btn => {
+                btn.classList.remove('active', 'bg-blue-100', 'text-blue-700');
+                btn.classList.add('bg-gray-100', 'text-gray-700');
+            });
+            
+            event.target.classList.add('active', 'bg-blue-100', 'text-blue-700');
+            event.target.classList.remove('bg-gray-100', 'text-gray-700');
+            
+            const searchQuery = document.getElementById('searchInput').value.toLowerCase();
+            filterMapMarkers(searchQuery);
+        }
+
+        function showCreateEventModal() {
+            if (!app.currentUser) {
+                alert('Please login to create events');
+                window.location.href = 'login.html';
+                return;
+            }
+            
+            delete window.editingEventId;
+            
+            const modalTitle = document.querySelector('#createEventModal h3');
+            if (modalTitle) modalTitle.textContent = 'Create New Event';
+            
+            const submitBtn = document.querySelector('#createEventForm button[type="submit"]');
+            if (submitBtn) submitBtn.innerHTML = 'Create Event';
+            
+            document.getElementById('createEventModal').classList.remove('hidden');
+            
+            const now = new Date();
+            now.setMinutes(now.getMinutes() + 1);
+            document.getElementById('eventDatetime').value = now.toISOString().slice(0, 16);
+        }
+
+        function hideCreateEventModal() {
+            document.getElementById('createEventModal').classList.add('hidden');
+            document.getElementById('createEventForm').reset();
+            delete window.selectedLocation;
+            delete window.editingEventId;
+            
+            const modalTitle = document.querySelector('#createEventModal h3');
+            if (modalTitle) modalTitle.textContent = 'Create New Event';
+            
+            const submitBtn = document.querySelector('#createEventForm button[type="submit"]');
+            if (submitBtn) submitBtn.innerHTML = 'Create Event';
+        }
+
+        async function createEvent() {
+            const title = document.getElementById('eventTitle').value;
+            const description = document.getElementById('eventDescription').value;
+            const category = document.getElementById('eventCategory').value;
+            const maxParticipants = document.getElementById('maxParticipants').value;
+            const datetime = document.getElementById('eventDatetime').value;
+            const locationInput = document.getElementById('eventLocation').value;
+            
+            const btn = document.querySelector('#createEventForm button[type="submit"]');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Processing...';
+            btn.disabled = true;
+
+            let location;
+
+            if (window.selectedLocation) {
+                location = window.selectedLocation;
+            } else if (locationInput && app.getCoordinates) {
+                btn.innerHTML = '<i class="fas fa-search mr-2"></i>Locating...';
+                const coords = await app.getCoordinates(locationInput);
+                
+                if (coords) {
+                    location = coords;
+                } else {
+                    showNotification("Could not find address. Try clicking the map.", "error");
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                    return;
+                }
+            } else {
+                location = [51.7592, 19.4560];
+            }
+            
+            let result;
+            
+            if (window.editingEventId) {
+                result = await app.editEvent(window.editingEventId, {
+                    title, description, category,
+                    latitude: location[0],
+                    longitude: location[1],
+                    address: locationInput,
+                    datetime,
+                    maxParticipants
+                });
+            } else {
+                result = await app.createEvent(title, description, category, location, locationInput, datetime, maxParticipants);
+            }
+            
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+
+            if (result.success) {
+                hideCreateEventModal();
+                updateStats();
+                showNotification(
+                    window.editingEventId ? 'Event updated successfully!' : 'Event created successfully!', 
+                    'success'
+                );
+                delete window.editingEventId;
+            } else {
+                showNotification(result.message || 'Failed to save event', 'error');
+            }
+        }
+
+        function locateUser() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(function(position) {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    
+                    app.map.setView([lat, lng], 15);
+                    
+                    L.marker([lat, lng])
+                        .addTo(app.map)
+                        .bindPopup('Your location')
+                        .openPopup();
+                        
+                }, function() {
+                    showNotification('Unable to get your location', 'error');
+                });
+            } else {
+                showNotification('Geolocation is not supported', 'error');
+            }
+        }
+
+        function refreshMap() {
+            const searchQuery = document.getElementById('searchInput').value.toLowerCase();
+            filterMapMarkers(searchQuery);
+            showNotification('Map refreshed', 'success');
+        }
+
+        function showUserStatus() {
+            document.getElementById('userStatus').classList.remove('hidden');
+            document.getElementById('authButtons').classList.add('hidden');
+            
+            document.getElementById('username').textContent = app.currentUser.name;
+            document.getElementById('userAvatar').src = app.currentUser.avatar || 'resources/avatars/default.jpg';
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `fixed top-24 right-4 z-50 p-4 rounded-lg shadow-lg transform transition-all duration-300 ${
+                type === 'success' ? 'bg-green-500 text-white' : 
+                type === 'error' ? 'bg-red-500 text-white' : 
+                'bg-blue-500 text-white'
+            }`;
+            notification.innerHTML = `
+                <div class="flex items-center space-x-2">
+                    <i class="fas ${type === 'success' ? 'fa-check' : type === 'error' ? 'fa-exclamation' : 'fa-info'}"></i>
+                    <span>${message}</span>
+                </div>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.transform = 'translateX(0)';
+            }, 100);
+            
+            setTimeout(() => {
+                notification.style.transform = 'translateX(100%)';
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
+        }
+
+        window.filterByCategory = filterByCategory;
+        window.showCreateEventModal = showCreateEventModal;
+        window.hideCreateEventModal = hideCreateEventModal;
+        window.locateUser = locateUser;
+        window.refreshMap = refreshMap;
+        window.toggleUserDropdown = toggleUserDropdown;
+    </script>
+</body>
+</html>
